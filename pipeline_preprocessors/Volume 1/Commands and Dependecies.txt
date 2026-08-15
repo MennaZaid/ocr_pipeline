@@ -1,0 +1,61 @@
+2. Requirements
+2.1 Python
+
+Python 3.9 or newer (3.10+ recommended).
+
+2.2 Required packages
+opencv-python
+numpy
+matplotlib
+2.3 Optional packages (only needed for specific features)
+Package	Needed for
+pymupdf (imported as fitz)	Reading .pdf input files
+pytesseract	Running OCR with the --ocr flag
+Tesseract OCR engine (system binary, not pip) + Arabic language pack	Also only for --ocr
+2.4 Install
+bash
+pip install opencv-python numpy matplotlib
+pip install pymupdf        # optional — PDF input
+pip install pytesseract    # optional — --ocr flag
+
+Tesseract itself is a separate system install:
+
+bash
+# Ubuntu / Debian
+sudo apt install tesseract-ocr tesseract-ocr-ara
+
+# macOS (Homebrew)
+brew install tesseract tesseract-lang
+
+# Windows
+# Install from https://github.com/UB-Mannheim/tesseract/wiki
+# and select the Arabic language pack during setup.
+
+Sanity check:
+
+bash
+python -c "import cv2, numpy, matplotlib; print('core deps OK')"
+3. Usage
+3.1 Calibrate only (no files written)
+
+Prints measurements and stage decisions for a page without processing it. Run this first on any new document type.
+
+bash
+python ocr_preprocess_v2.py path/to/scan.jpg --calibrate
+3.2 Full run on a single file
+bash
+python ocr_preprocess.py path/to/scan.jpg --outdir preprocessed
+
+Writes preprocessed/<name>_final.png (OCR-ready binary image) and preprocessed/<name>_stages.png (a contact sheet visualizing every stage).
+
+3.3 Full run + OCR text extraction
+bash
+python ocr_preprocess.py path/to/scan.jpg --outdir preprocessed --ocr
+
+Writes preprocessed/<name>.txt alongside the image outputs.
+
+3.4 Process an entire folder (images and/or PDFs)
+bash
+python ocr_preprocess.py path/to/folder --outdir preprocessed --save-stages
+
+--save-stages additionally dumps every intermediate stage as its own PNG in preprocessed/<name>_stages/.

@@ -1,0 +1,10 @@
+pymupdf
+opencv-python
+numpy
+Pillow
+
+# model inference (path 1 / path 2) — install separately per your CUDA setup:
+# torch
+# transformers
+# qwen-vl-utils
+# accelerate

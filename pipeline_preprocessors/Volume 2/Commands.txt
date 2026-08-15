@@ -1,0 +1,64 @@
+2. Requirements
+2.1 Python
+
+Python 3.9 or newer (3.10+ recommended).
+
+2.2 Required packages
+opencv-python
+numpy
+matplotlib
+2.3 Optional packages (only needed for specific features)
+Package	Needed for
+pymupdf (imported as fitz)	Reading .pdf input files
+pytesseract	Running OCR with the --ocr flag
+Tesseract OCR engine (system binary, not pip) + Arabic language pack	Also only for --ocr
+2.4 Install
+powershell
+pip install opencv-python numpy matplotlib
+pip install pymupdf        # optional — PDF input
+pip install pytesseract    # optional — --ocr flag
+
+Tesseract itself is a separate system install:
+
+powershell
+# Windows: install from https://github.com/UB-Mannheim/tesseract/wiki
+# and select the Arabic language pack during setup, then add the
+# install folder (e.g. C:\Program Files\Tesseract-OCR) to your PATH.
+bash
+# Ubuntu / Debian
+sudo apt install tesseract-ocr tesseract-ocr-ara
+
+# macOS (Homebrew)
+brew install tesseract tesseract-lang
+
+Sanity check:
+
+powershell
+python -c "import cv2, numpy, matplotlib; print('core deps OK')"
+3. Usage
+3.1 Calibrate only (no files written)
+
+Prints measurements and stage decisions for a page without processing it. Run this first on any new document type.
+
+powershell
+python ocr_preprocess.py path\to\scan.pdf --calibrate
+3.2 Full run on a single file
+powershell
+python ocr_preprocess.py path\to\scan.pdf --outdir preprocessed
+
+Writes, per page:
+
+preprocessed\<name>_final.png — OCR-ready binary image (black text on white)
+preprocessed\<name>_white_on_black.png — inverted version of the final image
+preprocessed\<name>_stages.png — contact sheet visualizing every stage
+3.3 Full run + OCR text extraction
+powershell
+python ocr_preprocess.py path\to\scan.pdf --outdir preprocessed --ocr
+
+Also writes preprocessed\<name>.txt.
+
+3.4 Process an entire folder (images and/or PDFs)
+powershell
+python ocr_preprocess.py path\to\folder --outdir preprocessed --save-stages
+
+--save-stages additionally dumps every intermediate stage as its own PNG in preprocessed\<name>_stages\.
