@@ -86,14 +86,18 @@ OMNI_PROMPT = """هذه صورة معالجة (أبيض وأسود) لصفحة �
 إذا كان رقم أو حرف غير واضح، اكتب "؟" مكانه بدلاً من التخمين.
 """
 
-# TODO: unresolved — should qwen3.8 be a standalone extractor (same shape as
-# above) or the disagreement-adjudicator we discussed (takes AIN's and Omni's
-# results plus the image, decides which is right)? Using the plain extractor
-# prompt as a placeholder until that's settled.
+QWEN38_PROMPT = """هذه صورة لصفحة من مستند قضائي، تم فقط تصحيح ميلها وقصها دون أي تعديل آخر على الألوان أو وضوح النص. اقرأ النص بعناية، بما في ذلك أي أجزاء بخط اليد أو باهتة، واستخرج بيانات كل "متهم" فقط — الشخص الموجه إليه الاتهام في القضية. لا تدرج القضاة، المحامين، الشهود، أو الموظفين حتى لو ظهرت أسماؤهم بشكل بارز.
+
+أخرج النتيجة بصيغة JSON فقط، بدون أي نص آخر، بهذا الشكل بالضبط:
+[{"full_name": "اسم المتهم كما هو مكتوب", "national_id": "الرقم القومي كما تراه"}]
+
+إذا كان رقم أو حرف غير واضح، اكتب "؟" مكانه بدلاً من التخمين.
+إذا لم يوجد أي متهم في الصفحة، أخرج: []
+"""
 PROMPTS = {
     "ain": AIN_PROMPT,
     "omni": OMNI_PROMPT,
-    "qwen3.8": EXTRACTION_PROMPT,   # placeholder — see TODO above
+    "qwen3.8": QWEN38_PROMPT,
 }
 
 # --- alternative: read-then-extract ----------------------------------------

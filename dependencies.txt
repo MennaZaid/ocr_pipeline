@@ -1,4 +1,16 @@
-DEPENDENCIES — install in this order (order matters, see note below)
+DEPENDENCIES — install in this order
+
+NOTE ON THIS REVISION: the old dependencies.txt required installing transformers
+from a special Qwen2.5-Omni preview branch (v4.51.3-Qwen2.5-Omni-preview) before
+anything else, because Omni support wasn't in mainline transformers yet at the
+time. That has since been merged into mainline (added 2025-04-14, folded into
+the regular v4.52.0+ releases) — a normal `pip install transformers` now
+supports Qwen2VLForConditionalGeneration (ain/omni's shared base architecture
+family) AND Qwen2_5OmniForConditionalGeneration (omni) with no special branch,
+no uninstall/reinstall dance, and no install-order risk between paths.
+Confirm this against your own offline mirror before relying on it — if you're
+downloading wheels once and mirroring them for the on-prem/no-cloud
+environment, pull a recent transformers release, not the old preview tag.
 
 Core (always needed):
   pymupdf
@@ -7,26 +19,36 @@ Core (always needed):
   Pillow
 
 Model inference:
-  torch           (preinstalled on Kaggle GPU notebooks — don't reinstall)
+  torch           (preinstalled on Kaggle GPU notebooks / most on-prem GPU
+                   images — don't reinstall unless you know you need a
+                   different CUDA build)
+  transformers
   accelerate
-  qwen-vl-utils   (for ain + qwen paths)
-  qwen-omni-utils[decord]   (for omni path)
-  openai          (for qwen3.8 path — talks to a self-hosted server, see HOW_TO_RUN.txt)
+  qwen-vl-utils          (for the ain path — Qwen2VLForConditionalGeneration)
+  qwen-omni-utils[decord] (for the omni path — Qwen2_5OmniForConditionalGeneration)
+  openai                 (for the qwen3.8 path — talks to your self-hosted
+                          vLLM/SGLang/TokenSpeed server, see how_to_run.txt;
+                          never talks to Qwen Cloud in this on-prem setup)
 
-transformers — SPECIAL CASE, install exactly like this:
-  pip uninstall -y transformers
-  pip install git+https://github.com/huggingface/transformers@v4.51.3-Qwen2.5-Omni-preview
-
-  Why: the omni path (Qwen2.5-Omni-7B) needs this specific branch build.
-  Installing a different transformers version afterward for ain/qwen can
-  break omni. Install transformers FIRST, then everything else.
-
-System package (only needed for omni's [decord] video/audio handling):
+System package (only needed for omni's [decord] video/audio handling —
+the OCR pipeline itself doesn't use video/audio, but qwen-omni-utils pulls
+this dependency in regardless):
   ffmpeg
 
-Full install order on Kaggle (run as separate cells):
-  1. pip uninstall -y transformers
-  2. pip install git+https://github.com/huggingface/transformers@v4.51.3-Qwen2.5-Omni-preview
-  3. pip install accelerate qwen-vl-utils
+Full install order (run as separate steps/cells):
+  1. pip install torch                      # skip if already provided by your base image
+  2. pip install transformers accelerate
+  3. pip install qwen-vl-utils
   4. pip install qwen-omni-utils[decord]
   5. pip install pymupdf opencv-python numpy Pillow openai
+
+Sanity check after install:
+  python -c "import cv2, numpy, fitz, torch, transformers; print('core deps OK')"
+  python -c "from transformers import Qwen2VLForConditionalGeneration; print('qwen2-vl class OK')"
+  python -c "from transformers import Qwen2_5OmniForConditionalGeneration; print('omni class OK')"
+  python -c "import qwen_vl_utils, qwen_omni_utils; print('vision utils OK')"
+
+If either Qwen2VLForConditionalGeneration or Qwen2_5OmniForConditionalGeneration
+fails to import, your mirrored/offline transformers build is older than the
+Omni merge — pin a newer release rather than falling back to the old preview
+branch workaround.
