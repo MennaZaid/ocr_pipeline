@@ -3,15 +3,18 @@
 """
 run_pipeline.py — manual model selection, one path per run:
 
-    python run_pipeline.py --input document.pdf --output out --model qwen3.8
     python run_pipeline.py --input document.pdf --output out --model ain
-    python run_pipeline.py --input document.pdf --output out --model all   # all 4, same as before
+    python run_pipeline.py --input document.pdf --output out --model omni
+    python run_pipeline.py --input document.pdf --output out --model qwen3.8
+    python run_pipeline.py --input document.pdf --output out --model all   # all three
 
-Four paths, dispatched by --model:
-  ain     -> ain_light preproc          -> models/ain_client.py     (local, transformers)
-  qwen    -> pipeline_selector -> vol N -> models/qwen_client.py    (local, transformers)
-  omni    -> ain_light preproc          -> models/omni_client.py    (local, transformers)
-  qwen3.8 -> ain_light preproc          -> models/qwen38_client.py  (HTTP, self-hosted server — see config.QWEN38_BASE_URL)
+Three paths, dispatched by --model:
+  ain     -> ain_light preproc (deskew+crop only) -> models/ain_client.py  (local, transformers)
+  omni    -> pipeline_selector -> vol N (1/2/3/5)  -> models/omni_client.py (local, transformers)
+  qwen3.8 -> ain_light preproc (deskew+crop only)  -> models/qwen38_client.py (HTTP, self-hosted server — see config.QWEN38_BASE_URL)
+
+The old Qwen2-VL-only "qwen" path has been retired — omni now owns the
+volume 1/2/3/5 preprocessing pipeline that path used to run.
 """
 from __future__ import annotations
 
@@ -34,7 +37,7 @@ from preprocessors.ain_light import preprocess_for_ain, AinConfig
 from extraction_utils import parse_extraction_output
 
 TXT_EXT = {".txt"}
-MODEL_CHOICES = ["ain", "qwen", "omni", "qwen3.8", "all"]
+MODEL_CHOICES = ["ain", "omni", "qwen3.8", "all"]
 
 
 def to_gray(bgr: np.ndarray) -> np.ndarray:
@@ -89,23 +92,18 @@ def run_ain_path(bgr, src_path, page_work_dir, page_id, args):
     return parse_extraction_output(text), text, None
 
 
-def run_qwen_path(bgr, src_path, page_work_dir, page_id, args):
+def run_omni_path(bgr, src_path, page_work_dir, page_id, args):
+    """Volume 1/2/3/5 preprocessing -> Qwen2.5-Omni. This is the pipeline
+    that used to be wired to Qwen2-VL under the retired "qwen" path — only
+    the model at the end changed."""
     gray = to_gray(bgr)
     volume_key, reason = choose_pipeline(estimate_quality(gray))
     img_path = run_volume_script(volume_key, src_path, page_work_dir, args)
     if img_path is None:
         return [], "", f"{volume_key} preprocessing failed"
-    from models.qwen_client import run_qwen
-    text = run_qwen(img_path, args.prompt or PROMPTS["qwen"])
-    return parse_extraction_output(text), text, f"volume={volume_key} ({reason})"
-
-
-def run_omni_path(bgr, src_path, page_work_dir, page_id, args):
-    result = preprocess_for_ain(bgr, AinConfig())
-    imwrite_unicode(page_work_dir / f"{page_id}_omni_preprocessed.png", result.final)
     from models.omni_client import run_omni
-    text = run_omni(result.final, args.prompt or PROMPTS["omni"])
-    return parse_extraction_output(text), text, None
+    text = run_omni(img_path, args.prompt or PROMPTS["omni"])
+    return parse_extraction_output(text), text, f"volume={volume_key} ({reason})"
 
 
 def run_qwen38_path(bgr, src_path, page_work_dir, page_id, args):
@@ -118,14 +116,13 @@ def run_qwen38_path(bgr, src_path, page_work_dir, page_id, args):
 
 HANDLERS = {
     "ain": run_ain_path,
-    "qwen": run_qwen_path,
     "omni": run_omni_path,
     "qwen3.8": run_qwen38_path,
 }
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Run ONE chosen model path (or --model all for all four)")
+    ap = argparse.ArgumentParser(description="Run ONE chosen model path (or --model all for all three)")
     ap.add_argument("--input", required=True, help="pdf, image, folder, or txt manifest")
     ap.add_argument("--output", default="pipeline_out")
     ap.add_argument("--model", required=True, choices=MODEL_CHOICES)

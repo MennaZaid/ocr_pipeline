@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-models/omni_client.py — path 3: Qwen2.5-Omni-7B.
+models/omni_client.py — Qwen2.5-Omni-7B path, now wired to the volume
+1/2/3/5 preprocessing pipeline (see run_pipeline.py's run_omni_path).
 
 Different model class from vlm_runner.py's (Qwen2_5OmniForConditionalGeneration,
 not Qwen2VLForConditionalGeneration) and a different vision utility
@@ -9,8 +10,7 @@ its own file instead of forcing a shared abstraction across two unrelated
 model APIs.
 
 Text-only: disable_talker() + return_audio=False, since this pipeline only
-needs OCR/extraction text, not speech. Per the model card this also saves
-~2GB VRAM, which matters when three 7B-class models may need to share one GPU.
+needs OCR/extraction text, not speech.
 """
 from __future__ import annotations
 import sys
