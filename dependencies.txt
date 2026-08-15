@@ -1,0 +1,32 @@
+DEPENDENCIES — install in this order (order matters, see note below)
+
+Core (always needed):
+  pymupdf
+  opencv-python
+  numpy
+  Pillow
+
+Model inference:
+  torch           (preinstalled on Kaggle GPU notebooks — don't reinstall)
+  accelerate
+  qwen-vl-utils   (for ain + qwen paths)
+  qwen-omni-utils[decord]   (for omni path)
+  openai          (for qwen3.8 path — talks to a self-hosted server, see HOW_TO_RUN.txt)
+
+transformers — SPECIAL CASE, install exactly like this:
+  pip uninstall -y transformers
+  pip install git+https://github.com/huggingface/transformers@v4.51.3-Qwen2.5-Omni-preview
+
+  Why: the omni path (Qwen2.5-Omni-7B) needs this specific branch build.
+  Installing a different transformers version afterward for ain/qwen can
+  break omni. Install transformers FIRST, then everything else.
+
+System package (only needed for omni's [decord] video/audio handling):
+  ffmpeg
+
+Full install order on Kaggle (run as separate cells):
+  1. pip uninstall -y transformers
+  2. pip install git+https://github.com/huggingface/transformers@v4.51.3-Qwen2.5-Omni-preview
+  3. pip install accelerate qwen-vl-utils
+  4. pip install qwen-omni-utils[decord]
+  5. pip install pymupdf opencv-python numpy Pillow openai

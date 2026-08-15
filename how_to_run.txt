@@ -1,0 +1,43 @@
+HOW TO RUN
+
+1. Set up the repo
+   - Unzip ocr_pipeline/ into your Kaggle working directory.
+   - Check config.py:
+       VOLUME_SCRIPTS  -> paths to your volume 1/2/3/5 preprocessor scripts
+       SHARED_MODULE_DIR -> folder containing ocr_preprocess_v2.py
+     Both should already be correct for the repo as delivered — only edit
+     if you move files around.
+
+2. Install dependencies
+   See dependencies.txt. Order matters — transformers first.
+
+3. Run one model on a document
+   python run_pipeline.py --input document.pdf --output out --model ain
+   python run_pipeline.py --input document.pdf --output out --model qwen
+   python run_pipeline.py --input document.pdf --output out --model omni
+
+   --input   : pdf, image, folder of files, or a .txt manifest (one path per line)
+   --output  : where results go (created if it doesn't exist)
+   --model   : ain | qwen | omni | qwen3.8 | all
+
+4. Run all four at once
+   python run_pipeline.py --input document.pdf --output out --model all
+
+5. qwen3.8 needs a server first (it's not a local transformers model)
+   a. Start a server yourself, e.g.:
+        vllm serve Qwen/Qwen3.8-27B --port 8000
+   b. Point the pipeline at it:
+        export QWEN38_BASE_URL=http://localhost:8000/v1
+   c. Then run:
+        python run_pipeline.py --input document.pdf --output out --model qwen3.8
+   If QWEN38_BASE_URL is not set, this path fails immediately with a clear
+   error instead of hanging.
+
+6. Where results land
+   out/<doc>_work/           intermediate/preprocessed page images
+   out/<doc>_text_<model>/   one JSON file per page: {full_name, national_id}
+   out/routing_report.jsonl  one row per page: which volume was chosen (qwen
+                              path), plus every model's output for that page
+
+7. Optional: override the prompt for a single run
+   python run_pipeline.py --input document.pdf --output out --model qwen --prompt "your text here"

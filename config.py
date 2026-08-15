@@ -19,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 
 # Directory containing ocr_preprocess_v2.py (shared by ain_light.py and the
 # volume scripts). Added to sys.path at runtime by run_pipeline.py.
-SHARED_MODULE_DIR = REPO_ROOT
+SHARED_MODULE_DIR = REPO_ROOT / "pipeline_preprocessors" / "Volume 5 (Complicated Pipeline)"
 
 VOLUME_SCRIPTS = {
     "volume1": REPO_ROOT / "pipeline_preprocessors" / "Volume 1" / "ocr_preprocess.py",
