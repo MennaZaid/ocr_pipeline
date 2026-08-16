@@ -105,9 +105,7 @@ def run_omni_path(bgr, src_path, page_work_dir, page_id, args):
     if img_path is None:
         return {}, "", f"{volume_key} preprocessing failed"
     from models.omni_client import run_omni
-    #in run_ain_path, run_omni_path, run_qwen38_path — change the call to:
-    text = run_ain(result.final, args.prompt or PROMPTS["ain"], max_new_tokens=1536)
-    #same pattern for run_omni(..., max_new_tokens=1536) and run_qwen38(..., max_new_tokens=1536)
+    text = run_omni(img_path, args.prompt or PROMPTS["omni"], max_new_tokens=1536)
     fields = extract_fields_from_transcription(text)
     return fields, text, f"volume={volume_key} ({reason})"
 
@@ -116,13 +114,9 @@ def run_qwen38_path(bgr, src_path, page_work_dir, page_id, args):
     result = preprocess_for_ain(bgr, AinConfig())
     imwrite_unicode(page_work_dir / f"{page_id}_qwen38_preprocessed.png", result.final)
     from models.qwen38_client import run_qwen38
-    # in run_ain_path, run_omni_path, run_qwen38_path — change the call to:
-    text = run_ain(result.final, args.prompt or PROMPTS["ain"], max_new_tokens=1536)
-    # same pattern for run_omni(..., max_new_tokens=1536) and run_qwen38(..., max_new_tokens=1536)
+    text = run_qwen38(result.final, args.prompt or PROMPTS["qwen3.8"], max_new_tokens=1536)
     fields = extract_fields_from_transcription(text)
     return fields, text, None
-
-
 HANDLERS = {
     "ain": run_ain_path,
     "omni": run_omni_path,

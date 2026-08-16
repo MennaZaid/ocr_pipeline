@@ -60,7 +60,12 @@ def run_vlm(model_id: str, image, prompt: str, max_new_tokens: int = 256) -> str
     image_inputs, video_inputs = process_vision_info(messages)
     inputs = processor(text=[text], images=image_inputs, videos=video_inputs,
                        padding=True, return_tensors="pt").to(model.device)
-    generated_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
+    generated_ids = model.generate(
+    **inputs,
+    max_new_tokens=max_new_tokens,
+    repetition_penalty=1.3,
+    no_repeat_ngram_size=4,
+    )
     trimmed = [out[len(inp):] for inp, out in zip(inputs.input_ids, generated_ids)]
     return processor.batch_decode(trimmed, skip_special_tokens=True,
                                   clean_up_tokenization_spaces=False)[0]
