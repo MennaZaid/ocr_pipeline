@@ -25,10 +25,13 @@ def _load(model_id: str):
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         model_id, torch_dtype="auto", device_map="auto"
     )
-    processor = AutoProcessor.from_pretrained(model_id)
+    min_pixels = 256 * 28 * 28
+    max_pixels = 1280 * 28 * 28   # AIN's own recommended cap for speed/memory balance
+    processor = AutoProcessor.from_pretrained(
+        model_id, min_pixels=min_pixels, max_pixels=max_pixels
+    )
     _MODEL_CACHE[model_id] = (model, processor)
     return model, processor
-
 
 def unload(model_id: str) -> None:
     """Free VRAM before loading the next model — needed when running all

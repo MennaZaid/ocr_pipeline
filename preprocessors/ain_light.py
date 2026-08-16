@@ -30,7 +30,6 @@ from ocr_preprocess_v2 import (  # noqa: E402
     text_metrics, text_only_mask, estimate_skew,
 )
 
-
 @dataclass
 class AinConfig:
     keep_color: bool = True
@@ -39,10 +38,9 @@ class AinConfig:
     crop_pad: int = 16
     target_min_side: int = 1024
     max_upscale: float = 2.0
-    light_contrast: bool = False   # opt-in; OFF by default, see module docstring
+    target_max_side: int = 2000     # NEW — hard ceiling, prevents huge scans from ever reaching the model at full size
+    light_contrast: bool = False
     invert_if_dark: bool = True
-
-
 @dataclass
 class AinResult:
     final: np.ndarray
