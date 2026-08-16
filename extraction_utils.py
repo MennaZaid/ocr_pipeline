@@ -20,22 +20,27 @@ import re
 from config import RESULT_MARKER
 
 
-def parse_extraction_output(raw_text: str) -> list[dict]:
+def parse_extraction_output(raw_text: str) -> dict:
     """
-    Returns a list of {"full_name": ..., "national_id": ...} dicts.
-    Returns [] (not an error) if nothing parseable is found — callers should
-    treat an empty list from a non-empty raw_text as a parse failure worth
-    logging, distinct from a genuine empty-page [] the model returned.
+    Returns {"description": str|None, "fields": list[dict]}.
+
+    "description" is whatever text preceded RESULT_MARKER (the two-stage
+    "what I see on this page" summary) — None if the model wasn't given a
+    two-stage prompt, i.e. no marker was expected or found.
+    "fields" is the same {"full_name", "national_id", "needs_review"} list
+    as before. An empty fields list from non-empty raw_text is still worth
+    logging as a possible parse failure, same as before.
     """
     text = raw_text.strip()
+    description = None
 
     if RESULT_MARKER in text:
-        text = text.split(RESULT_MARKER, 1)[1].strip()
+        description, text = text.split(RESULT_MARKER, 1)
+        description = description.strip() or None
+        text = text.strip()
 
-    # strip markdown code fences if the model added them despite instructions
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
 
-    # if there's leading/trailing chatter around the array, isolate it
     start, end = text.find("["), text.rfind("]")
     if start != -1 and end != -1 and end > start:
         text = text[start:end + 1]
@@ -43,17 +48,17 @@ def parse_extraction_output(raw_text: str) -> list[dict]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        return []
+        return {"description": description, "fields": []}
 
     if not isinstance(data, list):
-        return []
+        return {"description": description, "fields": []}
 
-    out = []
+    fields = []
     for item in data:
         if isinstance(item, dict) and "full_name" in item and "national_id" in item:
-            out.append({
+            fields.append({
                 "full_name": item.get("full_name", ""),
                 "national_id": item.get("national_id", ""),
                 "needs_review": "؟" in str(item.get("full_name", "")) + str(item.get("national_id", "")),
             })
-    return out
+    return {"description": description, "fields": fields}

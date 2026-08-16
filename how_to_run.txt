@@ -1,43 +1,84 @@
 HOW TO RUN
 
+This pipeline has THREE paths as of this revision: ain, omni, qwen3.8.
+The original Qwen2-VL-only path ("qwen") has been retired — omni now owns
+the volume 1/2/3/5 preprocessing pipeline that path used to run.
+models/qwen_client.py has been deleted.
+
+  ain     -> ain_light preproc (deskew + crop only)  -> models/ain_client.py     (local, transformers)
+  omni    -> pipeline_selector -> volume 1/2/3/5      -> models/omni_client.py   (local, transformers)
+  qwen3.8 -> ain_light preproc (deskew + crop only)   -> models/qwen38_client.py (HTTP, self-hosted server)
+
 1. Set up the repo
-   - Unzip ocr_pipeline/ into your Kaggle working directory.
+   - Unzip ocr_pipeline/ into your working directory.
    - Check config.py:
-       VOLUME_SCRIPTS  -> paths to your volume 1/2/3/5 preprocessor scripts
+       VOLUME_SCRIPTS    -> paths to your volume 1/2/3/5 preprocessor scripts
        SHARED_MODULE_DIR -> folder containing ocr_preprocess_v2.py
-     Both should already be correct for the repo as delivered — only edit
+       OMNI_MODEL_ID, QWEN38_MODEL_ID -> should already be filled in;
+         these were previously missing and would crash on --model omni /
+         --model qwen3.8 with ImportError. Confirm they're present before
+         running.
+     These should already be correct for the repo as delivered — only edit
      if you move files around.
 
 2. Install dependencies
-   See dependencies.txt. Order matters — transformers first.
+   See dependencies.txt (this replaces the old requirements.txt). Order
+   matters less than it used to — the Qwen2.5-Omni "special branch" install
+   requirement is gone; Omni support is now in mainline transformers.
+   Still install in the listed order to avoid dependency-resolver surprises.
 
-3. Run one model on a document
+3. Run one path on a document
    python run_pipeline.py --input document.pdf --output out --model ain
-   python run_pipeline.py --input document.pdf --output out --model qwen
    python run_pipeline.py --input document.pdf --output out --model omni
+   python run_pipeline.py --input document.pdf --output out --model qwen3.8
 
    --input   : pdf, image, folder of files, or a .txt manifest (one path per line)
    --output  : where results go (created if it doesn't exist)
-   --model   : ain | qwen | omni | qwen3.8 | all
+   --model   : ain | omni | qwen3.8 | all
 
-4. Run all four at once
+4. Run all three at once
    python run_pipeline.py --input document.pdf --output out --model all
 
 5. qwen3.8 needs a server first (it's not a local transformers model)
-   a. Start a server yourself, e.g.:
+   a. Start a server yourself, on your own on-prem hardware — never Qwen
+      Cloud, per the no-cloud constraint:
         vllm serve Qwen/Qwen3.8-27B --port 8000
+      NOTE: Qwen3.8-27B is a 27B dense model. Confirm with your infra/
+      supervisor that the box running this has adequate GPU memory before
+      relying on this path — it will not fit alongside ain/omni on the
+      same modest GPU those two paths were sized for.
    b. Point the pipeline at it:
         export QWEN38_BASE_URL=http://localhost:8000/v1
    c. Then run:
         python run_pipeline.py --input document.pdf --output out --model qwen3.8
    If QWEN38_BASE_URL is not set, this path fails immediately with a clear
-   error instead of hanging.
+   error instead of hanging or timing out.
 
 6. Where results land
-   out/<doc>_work/           intermediate/preprocessed page images
-   out/<doc>_text_<model>/   one JSON file per page: {full_name, national_id}
-   out/routing_report.jsonl  one row per page: which volume was chosen (qwen
-                              path), plus every model's output for that page
+   out/<doc>_work/                 intermediate/preprocessed page images
+   out/<doc>_text_<model>/         one JSON file per page: {full_name, national_id, needs_review}
+   out/routing_report.jsonl        one row per page: which volume omni used
+                                    (if run), plus every model's output for
+                                    that page
 
 7. Optional: override the prompt for a single run
-   python run_pipeline.py --input document.pdf --output out --model qwen --prompt "your text here"
+   python run_pipeline.py --input document.pdf --output out --model omni --prompt "your text here"
+
+8. Reading the output — the "؟" marker
+   Any field containing "؟" means the model could not read that character
+   confidently rather than guessing. extraction_utils.py surfaces this as
+   needs_review: true on that field. There is currently no automated
+   pass/fail gate on this flag — human review of flagged pages is a
+   manual step until the review workflow is finalized.
+
+NOT YET BUILT / NOT YET DECIDED
+  - No automatic cross-path matcher/consensus step. If you run --model all,
+    you get three independent JSON outputs per page in
+    out/routing_report.jsonl — comparing them and deciding auto-pass vs.
+    review is a manual step for now, pending a design decision.
+  - Qwen3.8's on-prem GPU sizing is not yet confirmed — check before
+    depending on this path.
+  - Volumes 1-3 do not yet emit a NULL vs NEEDS_REVIEW evidence report the
+    way volume 5 does (see faint_safe.py's evidence_report()). A blank
+    field from a volume 1/2/3 page currently cannot be distinguished from
+    a genuinely blank source field.

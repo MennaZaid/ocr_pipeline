@@ -88,31 +88,37 @@ def run_ain_path(bgr, src_path, page_work_dir, page_id, args):
     result = preprocess_for_ain(bgr, AinConfig())
     imwrite_unicode(page_work_dir / f"{page_id}_ain_preprocessed.png", result.final)
     from models.ain_client import run_ain
-    text = run_ain(result.final, args.prompt or PROMPTS["ain"])
-    return parse_extraction_output(text), text, None
+    prompt = args.prompt or PROMPTS["ain_two_stage"]   # AIN always two-stage
+    text = run_ain(result.final, prompt)
+    parsed = parse_extraction_output(text)
+    return parsed["fields"], text, parsed["description"]
 
 
 def run_omni_path(bgr, src_path, page_work_dir, page_id, args):
-    """Volume 1/2/3/5 preprocessing -> Qwen2.5-Omni. This is the pipeline
-    that used to be wired to Qwen2-VL under the retired "qwen" path — only
-    the model at the end changed."""
     gray = to_gray(bgr)
     volume_key, reason = choose_pipeline(estimate_quality(gray))
     img_path = run_volume_script(volume_key, src_path, page_work_dir, args)
     if img_path is None:
         return [], "", f"{volume_key} preprocessing failed"
     from models.omni_client import run_omni
-    text = run_omni(img_path, args.prompt or PROMPTS["omni"])
-    return parse_extraction_output(text), text, f"volume={volume_key} ({reason})"
+    # two-stage only for the harder tiers; volume1/volume2 stay single-stage for speed
+    two_stage = volume_key in ("volume3", "volume5")
+    prompt = args.prompt or PROMPTS["omni_two_stage" if two_stage else "omni"]
+    text = run_omni(img_path, prompt)
+    parsed = parse_extraction_output(text)
+    note = f"volume={volume_key} ({reason})"
+    if parsed["description"]:
+        note += f" | model saw: {parsed['description']}"
+    return parsed["fields"], text, note
 
 
 def run_qwen38_path(bgr, src_path, page_work_dir, page_id, args):
     result = preprocess_for_ain(bgr, AinConfig())
     imwrite_unicode(page_work_dir / f"{page_id}_qwen38_preprocessed.png", result.final)
     from models.qwen38_client import run_qwen38
-    text = run_qwen38(result.final, args.prompt or PROMPTS["qwen3.8"])
-    return parse_extraction_output(text), text, None
-
+    text = run_qwen38(result.final, args.prompt or PROMPTS["qwen3.8"])   # stays single-stage
+    parsed = parse_extraction_output(text)
+    return parsed["fields"], text, None
 
 HANDLERS = {
     "ain": run_ain_path,
