@@ -34,16 +34,32 @@ def _load():
     )
     _MODEL.disable_talker()
     _PROCESSOR = Qwen2_5OmniProcessor.from_pretrained(OMNI_MODEL_ID)
-    # Workaround for a transformers/Omni compatibility bug: some versions
-    # don't populate pad_token_id on the Talker subconfig, which generate()
-    # reads from even with the talker disabled. Set it explicitly from the
-    # tokenizer's own eos_token_id (standard fallback when no pad token
-    # exists) rather than relying on the subconfig having it already.
-    if _MODEL.generation_config.pad_token_id is None:
-        _MODEL.generation_config.pad_token_id = _PROCESSOR.tokenizer.eos_token_id
-    _MODEL_CACHE_READY = True
-    return _MODEL, _PROCESSOR
 
+    # Workaround for a transformers/Omni compatibility bug: some versions
+    # don't populate pad_token_id on sub-configs that generate() still reads
+    # from, even with the talker disabled. Set it everywhere it might be
+    # looked up, from the tokenizer's own eos_token_id (standard fallback
+    # when no dedicated pad token exists).
+    pad_id = _PROCESSOR.tokenizer.eos_token_id
+
+    if getattr(_MODEL.generation_config, "pad_token_id", None) is None:
+        _MODEL.generation_config.pad_token_id = pad_id
+
+    if hasattr(_MODEL, "config") and getattr(_MODEL.config, "pad_token_id", None) is None:
+        _MODEL.config.pad_token_id = pad_id
+
+    if hasattr(_MODEL, "talker") and _MODEL.talker is not None:
+        if not hasattr(_MODEL.talker.config, "pad_token_id") or _MODEL.talker.config.pad_token_id is None:
+            _MODEL.talker.config.pad_token_id = pad_id
+        if hasattr(_MODEL.talker, "generation_config"):
+            if getattr(_MODEL.talker.generation_config, "pad_token_id", None) is None:
+                _MODEL.talker.generation_config.pad_token_id = pad_id
+
+    if hasattr(_MODEL, "thinker") and _MODEL.thinker is not None:
+        if hasattr(_MODEL.thinker, "config") and getattr(_MODEL.thinker.config, "pad_token_id", None) is None:
+            _MODEL.thinker.config.pad_token_id = pad_id
+
+    return _MODEL, _PROCESSOR
 def unload() -> None:
     global _MODEL, _PROCESSOR
     import torch
