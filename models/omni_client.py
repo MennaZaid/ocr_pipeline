@@ -34,8 +34,15 @@ def _load():
     )
     _MODEL.disable_talker()
     _PROCESSOR = Qwen2_5OmniProcessor.from_pretrained(OMNI_MODEL_ID)
+    # Workaround for a transformers/Omni compatibility bug: some versions
+    # don't populate pad_token_id on the Talker subconfig, which generate()
+    # reads from even with the talker disabled. Set it explicitly from the
+    # tokenizer's own eos_token_id (standard fallback when no pad token
+    # exists) rather than relying on the subconfig having it already.
+    if _MODEL.generation_config.pad_token_id is None:
+        _MODEL.generation_config.pad_token_id = _PROCESSOR.tokenizer.eos_token_id
+    _MODEL_CACHE_READY = True
     return _MODEL, _PROCESSOR
-
 
 def unload() -> None:
     global _MODEL, _PROCESSOR
