@@ -6,15 +6,15 @@ run_pipeline.py — manual model selection, one path per run:
     python run_pipeline.py --input document.pdf --output out --model ain
     python run_pipeline.py --input document.pdf --output out --model omni
     python run_pipeline.py --input document.pdf --output out --model qwen3.8
-    python run_pipeline.py --input document.pdf --output out --model all   # all three
 
 Three paths, dispatched by --model:
-  ain     -> ain_light preproc (deskew+crop only) -> models/ain_client.py  (local, transformers)
-  omni    -> pipeline_selector -> vol N (1/2/3/5)  -> models/omni_client.py (local, transformers)
-  qwen3.8 -> ain_light preproc (deskew+crop only)  -> models/qwen38_client.py (HTTP, self-hosted server — see config.QWEN38_BASE_URL)
+  ain     -> ain_light preproc (deskew+crop only) -> models/ain_client.py
+  omni    -> pipeline_selector -> vol N (1/2/3/5)  -> models/omni_client.py
+  qwen3.8 -> ain_light preproc (deskew+crop only)  -> models/qwen38_client.py
 
-The old Qwen2-VL-only "qwen" path has been retired — omni now owns the
-volume 1/2/3/5 preprocessing pipeline that path used to run.
+REVISION: every path now returns a plain TRANSCRIPTION from the model, then
+extraction_utils.extract_fields_from_transcription() pulls out name/id from
+that text via label search. No JSON round-trips through the model anymore.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from config import DEFAULT_DPI, DEFAULT_LANG, PROMPTS
 from pdf_to_images import load_as_pages, imwrite_unicode, IMAGE_EXT, PDF_EXT
 from pipeline_selector import estimate_quality, choose_pipeline, volume_script_path
 from preprocessors.ain_light import preprocess_for_ain, AinConfig
-from extraction_utils import parse_extraction_output
+from extraction_utils import extract_fields_from_transcription
 
 TXT_EXT = {".txt"}
 MODEL_CHOICES = ["ain", "omni", "qwen3.8", "all"]
@@ -83,15 +83,17 @@ def run_volume_script(volume_key: str, src_image: Path, workdir: Path, args) -> 
 
 # --------------------------------------------------------------------------- #
 # One handler per model. Each returns (fields, raw_text, note_or_None).
+# fields is now the dict from extract_fields_from_transcription (may itself
+# contain "extraction_note" — kept separate from the path-level `note`,
+# which reports pipeline-level events like which volume was used or errors).
 # --------------------------------------------------------------------------- #
 def run_ain_path(bgr, src_path, page_work_dir, page_id, args):
     result = preprocess_for_ain(bgr, AinConfig())
     imwrite_unicode(page_work_dir / f"{page_id}_ain_preprocessed.png", result.final)
     from models.ain_client import run_ain
-    prompt = args.prompt or PROMPTS["ain_two_stage"]   # AIN always two-stage
-    text = run_ain(result.final, prompt)
-    parsed = parse_extraction_output(text)
-    return parsed["fields"], text, parsed["description"]
+    text = run_ain(result.final, args.prompt or PROMPTS["ain"])
+    fields = extract_fields_from_transcription(text)
+    return fields, text, None
 
 
 def run_omni_path(bgr, src_path, page_work_dir, page_id, args):
@@ -99,26 +101,21 @@ def run_omni_path(bgr, src_path, page_work_dir, page_id, args):
     volume_key, reason = choose_pipeline(estimate_quality(gray))
     img_path = run_volume_script(volume_key, src_path, page_work_dir, args)
     if img_path is None:
-        return [], "", f"{volume_key} preprocessing failed"
+        return {}, "", f"{volume_key} preprocessing failed"
     from models.omni_client import run_omni
-    # two-stage only for the harder tiers; volume1/volume2 stay single-stage for speed
-    two_stage = volume_key in ("volume3", "volume5")
-    prompt = args.prompt or PROMPTS["omni_two_stage" if two_stage else "omni"]
-    text = run_omni(img_path, prompt)
-    parsed = parse_extraction_output(text)
-    note = f"volume={volume_key} ({reason})"
-    if parsed["description"]:
-        note += f" | model saw: {parsed['description']}"
-    return parsed["fields"], text, note
+    text = run_omni(img_path, args.prompt or PROMPTS["omni"])
+    fields = extract_fields_from_transcription(text)
+    return fields, text, f"volume={volume_key} ({reason})"
 
 
 def run_qwen38_path(bgr, src_path, page_work_dir, page_id, args):
     result = preprocess_for_ain(bgr, AinConfig())
     imwrite_unicode(page_work_dir / f"{page_id}_qwen38_preprocessed.png", result.final)
     from models.qwen38_client import run_qwen38
-    text = run_qwen38(result.final, args.prompt or PROMPTS["qwen3.8"])   # stays single-stage
-    parsed = parse_extraction_output(text)
-    return parsed["fields"], text, None
+    text = run_qwen38(result.final, args.prompt or PROMPTS["qwen3.8"])
+    fields = extract_fields_from_transcription(text)
+    return fields, text, None
+
 
 HANDLERS = {
     "ain": run_ain_path,
@@ -181,7 +178,7 @@ def main():
                 try:
                     fields, text, note = HANDLERS[m](bgr, src_path, page_work_dir, page_id, args)
                 except Exception as e:
-                    fields, text, note = [], "", f"error: {e}"
+                    fields, text, note = {}, "", f"error: {e}"
                     failures += 1
                 (text_dirs[m] / f"{page_id}.json").write_text(
                     json.dumps({"page_id": page_id, "path": m, "raw_text": text,
